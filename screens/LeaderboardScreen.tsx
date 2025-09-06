@@ -55,7 +55,7 @@ const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ points }) => {
                                 {player.name}
                             </div>
                             <div className="ml-auto font-bold text-right">
-                                {Math.floor(player.points).toLocaleString()} P
+                                {player.points.toLocaleString('en-US', { maximumFractionDigits: 1 })} P
                             </div>
                         </div>
                     ))}

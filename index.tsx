@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
 import App from './App';
 import { Buffer } from 'buffer';
+import Preloader from './components/Preloader';
 
 // Fix: Augment the global Window type to include the 'Buffer' property for the polyfill.
 declare global {
@@ -23,6 +24,7 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
+
 root.render(
   <React.StrictMode>
     <TonConnectUIProvider manifestUrl={manifestUrl}>
@@ -30,3 +32,11 @@ root.render(
     </TonConnectUIProvider>
   </React.StrictMode>
 );
+
+// Hide preloader after app is mounted
+window.addEventListener('load', () => {
+    const preloader = document.getElementById('preloader');
+    if (preloader) {
+        preloader.classList.add('hidden');
+    }
+});

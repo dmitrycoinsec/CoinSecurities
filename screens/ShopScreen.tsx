@@ -1,14 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Upgrade } from '../hooks/useGameLogic';
 import TapIcon from '../components/icons/TapIcon';
 import ClockIcon from '../components/icons/ClockIcon';
 import BoosterIcon from '../components/icons/BoosterIcon';
 import RocketIcon from '../components/icons/RocketIcon';
+import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
+import { RECIPIENT_WALLET_ADDRESS, BOOSTER_PRICE_TON } from '../config';
 
 interface ShopScreenProps {
     points: number;
     upgrades: { [key: string]: Upgrade };
     buyUpgrade: (upgradeId: any) => void;
+    applyBooster: () => void;
+    boosterEndTime: number | null;
 }
 
 const ShopItem: React.FC<{
@@ -40,10 +44,47 @@ const ShopItem: React.FC<{
 );
 
 
-const ShopScreen: React.FC<ShopScreenProps> = ({ points, upgrades, buyUpgrade }) => {
+const ShopScreen: React.FC<ShopScreenProps> = ({ points, upgrades, buyUpgrade, applyBooster, boosterEndTime }) => {
+    const [tonConnectUI] = useTonConnectUI();
+    const wallet = useTonWallet();
+    const [isLoading, setIsLoading] = useState(false);
+    const isBoosterActive = boosterEndTime && Date.now() < boosterEndTime;
 
-    const handleBuyBooster = () => {
-        alert('Purchasing with TON is coming soon!');
+    const handleBuyBooster = async () => {
+        if (!wallet) {
+            alert('Please connect your TON wallet first.');
+            tonConnectUI.openModal();
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const transaction = {
+                validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
+                messages: [
+                    {
+                        address: RECIPIENT_WALLET_ADDRESS,
+                        amount: (parseFloat(BOOSTER_PRICE_TON) * 1e9).toString(), // Convert TON to nanoton
+                    },
+                ],
+            };
+
+            const result = await tonConnectUI.sendTransaction(transaction);
+            
+            // TODO: Send the result.boc to your backend for verification here!
+            // Do not trust the frontend. The backend must verify the transaction on the TON blockchain.
+            // For now, we will apply the booster directly for demonstration purposes.
+            
+            console.log("Transaction successful, BOC:", result.boc);
+            alert("Purchase successful! Your booster is now active.");
+            applyBooster();
+
+        } catch (error) {
+            console.error("Transaction failed:", error);
+            alert("Purchase failed. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -53,7 +94,6 @@ const ShopScreen: React.FC<ShopScreenProps> = ({ points, upgrades, buyUpgrade })
                     <h1 className="text-2xl font-bold">SECCO Shop</h1>
                     <div className="text-right">
                         <p className="font-semibold text-lg">{points.toLocaleString('en-US', { maximumFractionDigits: 1 })} P</p>
-                        <p className="text-sm text-gray-500">TON: 2.75</p>
                     </div>
                 </div>
 
@@ -112,14 +152,15 @@ const ShopScreen: React.FC<ShopScreenProps> = ({ points, upgrades, buyUpgrade })
                                 <div className="flex items-center gap-4">
                                     <div className="bg-blue-100 p-3 rounded-lg"><RocketIcon /></div>
                                     <div>
-                                        <h3 className="font-bold">2x Points (1 hour)</h3>
+                                        <h3 className="font-bold">2x Points (30 min)</h3>
                                         <p className="text-sm text-gray-500">Infinite Energy (30 min)</p>
                                     </div>
                                 </div>
                                 <button 
                                   onClick={handleBuyBooster}
-                                  className="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg">
-                                    0.5 TON
+                                  disabled={isLoading || isBoosterActive}
+                                  className="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed min-w-[90px]">
+                                    {isLoading ? '...' : (isBoosterActive ? 'Active' : `${BOOSTER_PRICE_TON} TON`)}
                                 </button>
                             </div>
                         </div>

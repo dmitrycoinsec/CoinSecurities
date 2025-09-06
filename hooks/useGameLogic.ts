@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { BOOSTER_DURATION_MINUTES } from '../config';
 
 export interface Upgrade {
     id: string;
@@ -10,7 +11,7 @@ export interface Upgrade {
 export interface Stock {
     id: string;
     name: string;
-    apy: number; // Annual Percentage Yield e.g., 0.15 for 15%
+    apy: number;
     price: number;
 }
 
@@ -24,7 +25,7 @@ export interface GameState {
     energy: number;
     maxEnergy: number;
     pointsPerTap: number;
-    passiveIncome: number; // from auto-farm upgrades (per minute)
+    passiveIncome: number;
     upgrades: {
         powerTap: Upgrade;
         megaClick: Upgrade;
@@ -35,6 +36,8 @@ export interface GameState {
         [key: string]: Investment;
     };
     lastTick: number;
+    boosterEndTime: number | null;
+    referralBonusClaimed: boolean;
 }
 
 export const STOCKS: Stock[] = [
@@ -43,51 +46,14 @@ export const STOCKS: Stock[] = [
     { id: 'global-net', name: 'GlobalNet', apy: 0.10, price: 5000 },
 ];
 
-const FULL_RECHARGE_SECONDS = 6 * 60 * 60; // 6 hours
+const FULL_RECHARGE_SECONDS = 6 * 60 * 60;
+const REFERRAL_BONUS = 10000;
 
 const getInitialState = (): GameState => {
     const savedStateJSON = localStorage.getItem('seccoGameStateV2');
     const now = Date.now();
 
-    if (savedStateJSON) {
-        try {
-            const state = JSON.parse(savedStateJSON) as GameState;
-            const timeOfflineInSeconds = (now - state.lastTick) / 1000;
-
-            // --- Offline Progress Calculation ---
-            // 1. Passive income from upgrades
-            if (state.passiveIncome > 0) {
-                const passiveEarnings = timeOfflineInSeconds * (state.passiveIncome / 60);
-                state.points += passiveEarnings;
-            }
-
-            // 2. Investment earnings
-            Object.keys(state.investments).forEach(stockId => {
-                const stock = STOCKS.find(s => s.id === stockId);
-                const investment = state.investments[stockId];
-                if (stock && investment) {
-                    const apyPerSecond = stock.apy / (365 * 24 * 60 * 60);
-                    const investmentEarnings = investment.amountInvested * apyPerSecond * timeOfflineInSeconds;
-                    state.points += investmentEarnings;
-                    investment.lastUpdated = now;
-                }
-            });
-            
-            // 3. Energy regeneration
-            const energyRegen = (timeOfflineInSeconds / FULL_RECHARGE_SECONDS) * state.maxEnergy;
-            state.energy = Math.min(state.maxEnergy, state.energy + energyRegen);
-
-            state.lastTick = now;
-            return state;
-        } catch (error) {
-            console.error("Failed to parse saved game state, resetting.", error);
-            localStorage.removeItem('seccoGameStateV2');
-            // Fall through to return the default state below
-        }
-    }
-
-    // Default state for first-time players
-    return {
+    let initialState: GameState = {
         points: 0,
         energy: 500,
         maxEnergy: 500,
@@ -100,30 +66,79 @@ const getInitialState = (): GameState => {
             turboAuto: { id: 'turboAuto', level: 0, price: 5000, increase: 50 },
         },
         investments: {},
-        lastTick: now
+        lastTick: now,
+        boosterEndTime: null,
+        referralBonusClaimed: false,
     };
+
+    if (savedStateJSON) {
+        try {
+            const state = JSON.parse(savedStateJSON) as GameState;
+            const timeOfflineInSeconds = (now - state.lastTick) / 1000;
+
+            if (state.passiveIncome > 0) {
+                const passiveEarnings = timeOfflineInSeconds * (state.passiveIncome / 60);
+                state.points += passiveEarnings;
+            }
+
+            Object.keys(state.investments).forEach(stockId => {
+                const stock = STOCKS.find(s => s.id === stockId);
+                const investment = state.investments[stockId];
+                if (stock && investment) {
+                    const apyPerSecond = stock.apy / (365 * 24 * 60 * 60);
+                    const investmentEarnings = investment.amountInvested * apyPerSecond * timeOfflineInSeconds;
+                    state.points += investmentEarnings;
+                    investment.lastUpdated = now;
+                }
+            });
+            
+            if (!state.boosterEndTime || now > state.boosterEndTime) {
+                const energyRegen = (timeOfflineInSeconds / FULL_RECHARGE_SECONDS) * state.maxEnergy;
+                state.energy = Math.min(state.maxEnergy, state.energy + energyRegen);
+            } else {
+                state.energy = state.maxEnergy; // Infinite energy while booster is active
+            }
+
+            state.lastTick = now;
+            initialState = state;
+        } catch (error) {
+            console.error("Failed to parse saved game state, resetting.", error);
+            localStorage.removeItem('seccoGameStateV2');
+        }
+    }
+
+    // Handle referral bonus
+    const urlParams = new URLSearchParams(window.location.search);
+    const refId = urlParams.get('ref');
+    if (refId && !initialState.referralBonusClaimed) {
+        initialState.points += REFERRAL_BONUS;
+        initialState.referralBonusClaimed = true;
+    }
+
+    return initialState;
 };
 
 export default function useGameLogic() {
     const [gameState, setGameState] = useState<GameState>(getInitialState);
 
-    // Main Game Loop (tick)
     useEffect(() => {
         const gameLoop = setInterval(() => {
             setGameState(prev => {
                 const now = Date.now();
                 const deltaSeconds = (now - prev.lastTick) / 1000;
+                
+                const isBoosterActive = prev.boosterEndTime && now < prev.boosterEndTime;
+                
+                let newEnergy = prev.energy;
+                if (isBoosterActive) {
+                    newEnergy = prev.maxEnergy;
+                } else {
+                    const energyRegen = (deltaSeconds / FULL_RECHARGE_SECONDS) * prev.maxEnergy;
+                    newEnergy = Math.min(prev.maxEnergy, prev.energy + energyRegen);
+                }
 
-                // 1. Passive income from upgrades
                 const passiveEarnings = deltaSeconds * (prev.passiveIncome / 60);
                 
-                // 2. Energy regeneration
-                const energyRegen = (deltaSeconds / FULL_RECHARGE_SECONDS) * prev.maxEnergy;
-                const newEnergy = Math.min(prev.maxEnergy, prev.energy + energyRegen);
-
-                // 3. Investment earnings (accrued to be claimed)
-                // In this simplified model, we'll add directly to points.
-                // A more complex version would have a separate 'claimable' pool.
                 let investmentEarnings = 0;
                 const newInvestments = { ...prev.investments };
                 Object.keys(newInvestments).forEach(stockId => {
@@ -141,7 +156,8 @@ export default function useGameLogic() {
                     points: prev.points + passiveEarnings + investmentEarnings,
                     energy: newEnergy,
                     investments: newInvestments,
-                    lastTick: now
+                    lastTick: now,
+                    boosterEndTime: isBoosterActive ? prev.boosterEndTime : null,
                 };
             });
         }, 1000);
@@ -149,23 +165,25 @@ export default function useGameLogic() {
         return () => clearInterval(gameLoop);
     }, []);
 
-    // Save state to localStorage whenever it changes
     useEffect(() => {
         localStorage.setItem('seccoGameStateV2', JSON.stringify(gameState));
     }, [gameState]);
 
-
     const handleTap = useCallback(() => {
-        if (gameState.energy >= 1) { // Each tap costs 1 energy
+        const now = Date.now();
+        const isBoosterActive = gameState.boosterEndTime && now < gameState.boosterEndTime;
+        
+        if (isBoosterActive || gameState.energy >= 1) {
+            const tapValue = isBoosterActive ? gameState.pointsPerTap * 2 : gameState.pointsPerTap;
             setGameState(prev => ({
                 ...prev,
-                points: prev.points + prev.pointsPerTap,
-                energy: prev.energy - 1,
+                points: prev.points + tapValue,
+                energy: isBoosterActive ? prev.energy : prev.energy - 1,
             }));
             return true;
         }
         return false;
-    }, [gameState.energy, gameState.pointsPerTap]);
+    }, [gameState.energy, gameState.pointsPerTap, gameState.boosterEndTime]);
 
     const buyUpgrade = useCallback((upgradeId: keyof typeof gameState.upgrades) => {
         const upgrade = gameState.upgrades[upgradeId];
@@ -218,13 +236,20 @@ export default function useGameLogic() {
                 }
             }
         });
-
     }, [gameState.points]);
+    
+    const applyBooster = useCallback(() => {
+        setGameState(prev => ({
+            ...prev,
+            boosterEndTime: Date.now() + BOOSTER_DURATION_MINUTES * 60 * 1000,
+        }));
+    }, []);
 
     return {
         ...gameState,
         handleTap,
         buyUpgrade,
-        buyStock
+        buyStock,
+        applyBooster,
     };
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface FloatingText {
     id: number;
@@ -12,22 +12,51 @@ interface HomeScreenProps {
     energy: number;
     maxEnergy: number;
     pointsPerTap: number;
+    boosterEndTime: number | null;
     handleTap: () => boolean;
 }
 
-const HomeScreen: React.FC<HomeScreenProps> = ({ points, energy, maxEnergy, pointsPerTap, handleTap }) => {
+const BoosterTimer: React.FC<{ endTime: number }> = ({ endTime }) => {
+    const [timeLeft, setTimeLeft] = useState(endTime - Date.now());
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const newTimeLeft = endTime - Date.now();
+            if (newTimeLeft > 0) {
+                setTimeLeft(newTimeLeft);
+            } else {
+                setTimeLeft(0);
+                clearInterval(interval);
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [endTime]);
+
+    const minutes = Math.floor((timeLeft / 1000 / 60) % 60);
+    const seconds = Math.floor((timeLeft / 1000) % 60);
+
+    return (
+        <div className="bg-yellow-100 text-yellow-800 text-sm font-bold px-3 py-1 rounded-full animate-pulse">
+            🚀 Booster Active: {minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
+        </div>
+    );
+};
+
+const HomeScreen: React.FC<HomeScreenProps> = ({ points, energy, maxEnergy, pointsPerTap, boosterEndTime, handleTap }) => {
     const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
+    const isBoosterActive = boosterEndTime && Date.now() < boosterEndTime;
+    
+    const currentPointsPerTap = isBoosterActive ? pointsPerTap * 2 : pointsPerTap;
 
     const onTap = (event: React.MouseEvent<HTMLButtonElement>) => {
         if (handleTap()) {
             const rect = event.currentTarget.getBoundingClientRect();
-            // Get a random position within the button
             const x = event.clientX - rect.left + (Math.random() * 60 - 30);
-            const y = event.clientY - rect.top - 40; // Start slightly above the tap position
+            const y = event.clientY - rect.top - 40;
 
             const newText: FloatingText = {
                 id: Date.now() + Math.random(),
-                value: `+${pointsPerTap.toFixed(1)}`,
+                value: `+${currentPointsPerTap.toFixed(1)}`,
                 x,
                 y,
             };
@@ -39,24 +68,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ points, energy, maxEnergy, poin
         }
     };
 
-    const handleBuyTon = () => {
-        alert('This feature is coming soon!');
-    };
-
     const energyPercentage = (energy / maxEnergy) * 100;
 
     return (
         <div className="w-full h-full flex flex-col justify-between items-center text-center pb-20">
-            {/* Points Display */}
-            <div className="flex flex-col items-center mt-4">
-                <span className="text-gray-500 font-medium">SECCO-Points Balance</span>
+            <div className="flex flex-col items-center mt-4 space-y-2">
+                {isBoosterActive && boosterEndTime && <BoosterTimer endTime={boosterEndTime} />}
                 <h1 className="text-5xl font-extrabold text-black">
                     {points.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                 </h1>
-                <p className="text-gray-500 font-medium mt-1">+{pointsPerTap.toFixed(1)} per tap</p>
+                <p className="text-gray-500 font-medium">+{currentPointsPerTap.toFixed(1)} per tap</p>
             </div>
             
-            {/* Floating text container */}
             <div className="relative w-full flex justify-center mt-8 mb-8">
                  <button 
                     onClick={onTap}
@@ -91,22 +114,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ points, energy, maxEnergy, poin
                 ))}
             </div>
 
-
-            {/* Energy Bar and TON buttons */}
-            <div className="w-full">
+            <div className="w-full px-4">
                 <div className="flex justify-between items-center mb-2">
-                    <span className="font-semibold text-lg">⚡️ Energy: {Math.floor(energy)}/{maxEnergy}</span>
+                    <span className="font-semibold text-lg">
+                        {isBoosterActive ? '⚡️ Energy: ∞' : `⚡️ Energy: ${Math.floor(energy)}/${maxEnergy}`}
+                    </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-                    <div className="bg-blue-500 h-2.5 rounded-full" style={{ width: `${energyPercentage}%` }}></div>
-                </div>
-                <div className="flex justify-between items-center gap-2">
-                     <button 
-                        onClick={handleBuyTon}
-                        className="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2">
-                        <span>Buy TON</span>
-                        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm3.32 12.68c-.14.4-.46.72-.88.88l-2.03.78c-.19.07-.39.07-.58 0l-2.03-.78c-.42-.16-.74-.48-.88-.88l-.78-2.03c-.07-.19-.07-.39 0-.58l.78-2.03c.14-.4.46-.72.88-.88l2.03-.78c.19-.07.39-.07-.58 0l2.03.78c.42.16.74.48.88.88l.78 2.03c.07.19.07.39 0 .58l-.78 2.03z" fill="#fff"/><path d="M12.63 12.38l1.39-1.39-1.1-2.92-2.3.87.61.61-1.38 1.38 2.78 1.45zM12 13.16l-2.42.91.91-2.42 1.51 1.51z" fill="#007aff"/></svg>
-                    </button>
+                    <div className="bg-blue-500 h-2.5 rounded-full" style={{ width: `${isBoosterActive ? 100 : energyPercentage}%` }}></div>
                 </div>
             </div>
 

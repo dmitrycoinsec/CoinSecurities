@@ -21,7 +21,7 @@ const mockLeaderboard: LeaderboardEntry[] = [
 ];
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ points, passiveIncome }) => {
-    const { user } = useTelegram();
+    const { tg, user } = useTelegram();
     const playerName = user?.username || 'You';
 
     const sortedLeaderboard = useMemo(() => {
@@ -30,8 +30,39 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ points, passiveIncome }) 
         return combined.sort((a, b) => b.points - a.points);
     }, [points, playerName]);
 
+    const referralLink = useMemo(() => {
+        // This generates a shareable link for the Telegram Mini App.
+        // Replace 'YourTelegramBotName' with your actual bot's username.
+        const botUsername = 'secco_tap_bot'; // Example bot name
+        const appName = 'app'; // This is often the default or needs to be configured in BotFather
+        const refId = user?.id || 'unknown';
+        return `https://t.me/${botUsername}/${appName}?startapp=ref${refId}`;
+    }, [user]);
+
     const handleInvite = () => {
-        alert('The referral system is coming soon! Get ready to invite your friends.');
+        if (tg) {
+            tg.showPopup({
+                title: 'Invite a Friend!',
+                message: 'Share your referral link with friends. When they join, they will get a bonus of 10,000 points!',
+                buttons: [
+                    { 
+                        id: 'share', 
+                        type: 'default', 
+                        text: 'Share Link' 
+                    },
+                    { 
+                        type: 'cancel' 
+                    },
+                ]
+            }, (buttonId: string) => {
+                if (buttonId === 'share') {
+                    const text = `💰 Join me in SECCO Tap Game and get a head start with 10,000 bonus points! Let's earn together. 🚀`;
+                    tg.switchInlineQuery(text + ' ' + referralLink);
+                }
+            });
+        } else {
+             alert(`Share this link with your friends: ${referralLink}`);
+        }
     };
 
     const StatCard: React.FC<{ label: string, value: string }> = ({ label, value }) => (
@@ -58,7 +89,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ points, passiveIncome }) 
                 </div>
                 
                 <div className="bg-blue-50 p-4 rounded-xl text-center border border-blue-200">
-                    <p className="text-blue-800">Invite a friend and get a bonus!</p>
+                    <p className="text-blue-800 font-semibold">Invite a friend, get a bonus!</p>
+                     <p className="text-xs text-gray-500 mt-1">Your friend will receive 10,000 points.</p>
                     <button
                         onClick={handleInvite}
                         className="mt-2 bg-blue-500 text-white font-bold py-2 px-5 rounded-lg"
@@ -83,7 +115,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ points, passiveIncome }) 
                                 {player.name}
                             </div>
                             <div className="ml-auto font-bold text-right">
-                                {Math.floor(player.points).toLocaleString()} P
+                                {player.points.toLocaleString('en-US', { maximumFractionDigits: 1 })} P
                             </div>
                         </div>
                     ))}
