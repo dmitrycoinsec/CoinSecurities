@@ -1,0 +1,33 @@
+{
+  "name": "coinsecurities",
+  "version": "1.0.0",
+  "description": "CoinSecurities - Tap to Earn game with TON integration",
+  "private": true,
+  "workspaces": [
+    "CoinSecurities-main",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd CoinSecurities-main && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "build": "npm run build:frontend",
+    "build:frontend": "cd CoinSecurities-main && npm run build",
+    "start": "npm run start:backend",
+    "start:backend": "cd backend && npm start",
+    "install:all": "npm install && cd CoinSecurities-main && npm install && cd ../backend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "ton",
+    "blockchain",
+    "game",
+    "crypto",
+    "tap-to-earn",
+    "vercel"
+  ],
+  "author": "CoinSecurities Team",
+  "license": "MIT"
+}
