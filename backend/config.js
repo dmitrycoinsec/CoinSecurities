@@ -1,4 +1,4 @@
-// Configuration file for CoinSecurities Backend
+м все новое // Configuration file for CoinSecurities Backend
 export const config = {
     // Server Configuration
     port: process.env.PORT || 3001,
