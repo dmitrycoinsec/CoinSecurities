@@ -33,19 +33,21 @@ const App: React.FC = () => {
         <div className="min-h-screen w-full flex flex-col items-center text-black selection:bg-blue-200 bg-transparent overflow-hidden">
             <Header />
             <main className="w-full max-w-md p-4 flex-grow relative">
-                {screens.map(({ id, component: Component }) => (
-                    <div
-                        key={id}
-                        className={`absolute top-4 left-4 right-4 transition-all duration-300 ease-in-out ${activeScreen === id ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-5 pointer-events-none'}`}
-                    >
-                         {/* Pass boosterEndTime to HomeScreen and applyBooster to ShopScreen */}
-                        <Component 
-                            {...gameLogic} 
-                            boosterEndTime={gameLogic.boosterEndTime} 
-                            applyBooster={gameLogic.applyBooster}
-                        />
-                    </div>
-                ))}
+                {screens.map(({ id, component: Component }) => {
+                    if (activeScreen !== id) return null;
+                    return (
+                        <div
+                            key={id}
+                            className="w-full h-full transition-all duration-300 ease-in-out"
+                        >
+                            <Component 
+                                {...gameLogic} 
+                                boosterEndTime={gameLogic.boosterEndTime} 
+                                applyBooster={gameLogic.applyBooster}
+                            />
+                        </div>
+                    );
+                })}
             </main>
             <BottomNav activeScreen={activeScreen} setActiveScreen={setActiveScreen} />
         </div>
